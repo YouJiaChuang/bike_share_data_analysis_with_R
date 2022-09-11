@@ -1,0 +1,201 @@
+# data viz
+install.packages('ggplot2')
+library(ggplot2)
+install.packages("ggpubr")
+library(ggpubr)
+# data import
+install.packages('readr')
+library(readr)
+# data tidying
+install.packages("tidyverse")
+library(tidyverse)
+library(lubridate)
+# data transformation
+install.packages("dplyr")
+library(dplyr)
+install.packages("janitor")
+library("janitor")
+# time related packages
+install.packages("chron")
+library(chron)
+install.packages("scales")
+library(scales)
+
+#import file 
+tripdata_202107 <- read_csv("/Users/youjia/Downloads/202107-divvy-tripdata_1.csv")
+tripdata_202108 <- read_csv("/Users/youjia/Downloads/202108-divvy-tripdata_1.csv")
+tripdata_202109 <- read_csv("/Users/youjia/Downloads/202109-divvy-tripdata_1.csv")
+tripdata_202110 <- read_csv("/Users/youjia/Downloads/202110-divvy-tripdata_1.csv")
+tripdata_202111 <- read_csv("/Users/youjia/Downloads/202111-divvy-tripdata_1.csv")
+tripdata_202112 <- read_csv("/Users/youjia/Downloads/202112-divvy-tripdata_1.csv")
+tripdata_202201 <- read_csv("/Users/youjia/Downloads/202201-divvy-tripdata_1.csv")
+tripdata_202202 <- read_csv("/Users/youjia/Downloads/202202-divvy-tripdata_1.csv")
+tripdata_202203 <- read_csv("/Users/youjia/Downloads/202203-divvy-tripdata_1.csv")
+tripdata_202204 <- read_csv("/Users/youjia/Downloads/202204-divvy-tripdata_1.csv")
+tripdata_202205 <- read_csv("/Users/youjia/Downloads/202205-divvy-tripdata_1.csv")
+tripdata_202206 <- read_csv("/Users/youjia/Downloads/202206-divvy-tripdata_1.csv")
+
+# combine dataset all together
+all_trips <- bind_rows(tripdata_202107, tripdata_202108, tripdata_202109, tripdata_202110, 
+                       tripdata_202111,tripdata_202112, tripdata_202201, tripdata_202202, 
+                       tripdata_202203, tripdata_202204, tripdata_202205, tripdata_202206)
+
+# data cleaning
+
+# inspect the dataset <- check the columns name
+colnames(all_trips) 
+
+# delete a column (not suppose to be in the dataset)
+all_trips <- subset(all_trips, select = -...6)
+
+str(all_trips) # see the list of column and datatypes
+nrow(all_trips) # see how many rows in the data
+dim(all_trips) # see the dimensions of the dataset
+summary(all_trips) 
+
+# check if the column 'member_casual' only contains 'casual' and 'member'
+all_trips <- filter(all_trips, member_casual == "casual" | member_casual == "member")
+
+# check the durations are all greater than 5 mins by using 'lubridate::hms' 
+all_trips <- filter(all_trips, duration > lubridate::hms("00:05:00"))
+
+# clean the NA in the data
+all_trips <- na.omit(all_trips)
+
+summary(all_trips)
+
+# analysis
+
+# using 'chron' packages and 'times' function 
+mean(times(all_trips$duration)) # check the mean time of all the durations
+median(times(all_trips$duration)) # check the median time of all the durations
+max(times(all_trips$duration)) # check the max time of all the durations
+min(times(all_trips$duration)) # check the min time of all the durations
+summary(times(all_trips$duration)) # include mean, max, min, and median 
+
+# compare member and casual rider
+aggregate(times(all_trips$duration)~all_trips$member_casual, FUN = mean)
+aggregate(times(all_trips$duration)~all_trips$member_casual, FUN = median)
+aggregate(times(all_trips$duration)~all_trips$member_casual, FUN = max)          
+aggregate(times(all_trips$duration)~all_trips$member_casual, FUN = min)
+
+# see the average ride time by each day for member and casual rider
+
+"""
+aggregate(times(all_trips$duration)~all_trips$member_casual+all_trips$weekday, 
+                            FUN = mean)
+# becasue the day of the week is not in order, so we have to put them in order first
+"""
+
+all_trips$weekday <- ordered(all_trips$weekday, level = c("Sunday","Monday", "Tuesday","Wednesday",
+                                                          "Thursday", "Friday", "Saturday"))
+avg_comparision <- aggregate(times(all_trips$duration)~all_trips$member_casual+all_trips$weekday, 
+          FUN = mean)
+
+# extract rows and columns from avg_comparison dataset, and convert it from integer into character
+c_sun <- as.character(avg_comparison[c(1),3])
+c_mon <- as.character(avg_comparison[c(3),3])
+c_tue <- as.character(avg_comparison[c(5),3])
+c_wed <- as.character(avg_comparison[c(7),3])
+c_thu <- as.character(avg_comparison[c(9),3])
+c_fri <- as.character(avg_comparision[c(11),3])
+c_sat <- as.character(avg_comparision[c(13),3])
+
+# put the info into a list for later use
+casual_riders <- c(c_sun, c_mon, c_tue, c_wed, c_thu, c_fri, c_sat)
+
+m_sun <- as.character(avg_comparison[c(2),3])
+m_mon <- as.character(avg_comparison[c(4),3])
+m_tue <- as.character(avg_comparison[c(6),3])
+m_wed <- as.character(avg_comparison[c(8),3])
+m_thu <- as.character(avg_comparison[c(10),3])
+m_fri <- as.character(avg_comparison[c(12),3])
+m_sat <- as.character(avg_comparison[c(14),3])
+
+member_riders <- c(m_sun, m_mon, m_tue, m_wed, m_thu, m_fri, m_sat)
+
+day_of_week <- c("Sunday","Monday", "Tuesday","Wednesday",
+                    "Thursday", "Friday", "Saturday")
+
+# creating a new dataset from modified the old avg_comparison
+avg_comparision <- data_frame(day_of_week, member_riders,casual_riders)
+
+# analyze ridership data by type and weekday
+all_trips %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()) %>% 
+  arrange(member_casual, weekday) %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) + 
+  geom_col(position = 'dodge', colour = "black") + 
+  scale_y_continuous(name = "number_of_rides", labels = scales ::comma) +
+  scale_fill_manual(values = c("blue4", "Yellow")) +
+  ggtitle(" Relationship between 
+  number of rides, day of week, and membership type") 
+
+# analyze ridership by type and average duration
+all_trips%>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(average_duration = mean(duration)/60) %>% 
+  arrange(member_casual, weekday) %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) + 
+  geom_col(position = 'dodge', colour = "black") + 
+  scale_y_continuous(name = "average_duration (min)",labels = scales ::comma) +
+  geom_text(aes(label = round(average_duration, digits = 1)), vjust = -0.2, 
+            position = position_dodge(0.9), colour = "black", size = 4 ) +
+  scale_fill_manual(values = c("yellow", "blue4")) +
+  ggtitle(" Relationship between 
+  average duration, day of week, and membership type") 
+
+
+# analyze top stations for different ridership
+
+# extract data from all_trips to form new data
+station_start <- data.frame( all_trips[,7], all_trips[,15])
+station_end <- data.frame(all_trips[,9], all_trips[,15])
+
+member_start <- filter(station_start, member_casual == "member")
+member_end <-  filter(station_end, member_casual == "member")
+casual_start <-  filter(station_start, member_casual == "casual")
+casual_end <-  filter(station_end, member_casual == "casual")
+
+member_start <- head(count(member_start,start_station_name, member_casual, sort = TRUE), n=5)
+member_start <- rename(member_start, counts = n) 
+
+member_end <- head(count(member_end,end_station_name, member_casual, sort = TRUE), n=5)
+member_end <- rename(member_end, counts = n)
+
+casual_start <- head(count(casual_start, start_station_name, member_casual, sort = TRUE), n=5)
+casual_start <- rename(casual_start, counts = n)
+
+casual_end <- head(count(casual_end, end_station_name, member_casual, sort = TRUE), n=5)
+casual_end <- rename(casual_end, counts = n)
+
+
+member_start <- ggplot(data = member_start, aes(x= reorder(start_station_name, +counts), y = counts)) +
+  labs(title = "member_start_station", x = "start_station_name", y = "counts")+
+  geom_bar(stat = "identity", fill = "yellow", color = "black") + 
+  geom_text(aes(label = counts), hjust = 1.5, nudge_x = 0,color = "black", size = 5) +
+  coord_flip()
+
+member_end <- ggplot(data = member_end, aes(x= reorder(end_station_name, +counts), y = counts)) +
+  labs(title = "member_end_station", x = "end_station_name", y = "counts")+
+  geom_bar(stat = "identity", fill = "yellow", color = "black") + 
+  geom_text(aes(label = counts), hjust = 1.5, nudge_x = 0,color = "black", size = 5) +
+  coord_flip()
+
+casual_start <- ggplot(data = casual_start, aes(x= reorder(start_station_name, +counts), y = counts)) +
+  labs(title = "casual_start_station", x = "start_station_name", y = "counts") +
+  geom_bar(stat = "identity", fill = "yellow", color = "black") + 
+  geom_text(aes(label = counts), hjust = 1.5, nudge_x = 0,color = "black", size = 5) +
+  coord_flip()
+
+casual_end <- ggplot(data = casual_end, aes(x= reorder(end_station_name, +counts), y = counts)) +
+  labs(title = "casual_end_station", x = "end_station_name", y = "counts") +
+  geom_bar(stat = "identity", fill = "yellow", color = "black") + 
+  geom_text(aes(label = counts), hjust = 1.5, nudge_x = 0,color = "black", size = 5) +
+  coord_flip()
+
+# arrange 4 bar charts into 1 diagram
+ggarrange(member_start, member_end, casual_start, casual_end)
+
+
